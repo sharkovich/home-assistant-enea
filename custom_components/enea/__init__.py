@@ -29,9 +29,12 @@ from .const import (
     DEFAULT_NET_METERING,
     DEFAULT_UPDATE_INTERVAL_DICT,
     DOMAIN,
+    NET_BILLING,
     NET_METERING_RATIOS,
     NOTIFICATIONS_STORAGE_VERSION,
     PLATFORMS,
+    RCE_STORAGE_KEY,
+    RCE_STORAGE_VERSION,
     SERVICE_BACKFILL,
     SERVICE_REFRESH,
 )
@@ -121,6 +124,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EneaConfigEntry) -> bool
         net_metering_ratio=NET_METERING_RATIOS.get(
             entry.options.get(CONF_NET_METERING, DEFAULT_NET_METERING)
         ),
+        net_billing=entry.options.get(CONF_NET_METERING) == NET_BILLING,
         notifications=(
             account.notifications if entry.options.get(CONF_NOTIFICATIONS, True) else None
         ),
@@ -215,6 +219,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: EneaConfigEntry) -> Non
     await Store(
         hass, COST_PRICES_STORAGE_VERSION, f"{COST_PRICES_STORAGE_KEY}.{entry.entry_id}"
     ).async_remove()
+    await Store(hass, RCE_STORAGE_VERSION, f"{RCE_STORAGE_KEY}.{entry.entry_id}").async_remove()
     username = entry.data[CONF_USERNAME]
     if not any(
         other.entry_id != entry.entry_id and other.data.get(CONF_USERNAME) == username

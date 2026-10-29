@@ -127,7 +127,15 @@ Po wybraniu współczynnika w opcji **System opustów**:
 - **szacowany rachunek** liczy energię, opłatę sieciową zmienną i jakościową tylko od nadwyżki poboru. OZE i kogeneracja pozostają od całego poboru po bilansowaniu godzinowym. Energia oddana (× współczynnik) rozlicza najpierw pobór w tej samej strefie, a nadwyżka przechodzi na pozostałe strefy — od strefy z najwyższą stawką sieciową zmienną. Dochodzą atrybuty `returned_kwh_{strefa}` (energia oddana), `billed_kwh_{strefa}` (zużycie po opuście) i `net_metering_left_kwh` (niewykorzystany opust w okresie);
 - **koszt energii oddanej** w panelu Energia (`enea:…_koszt_energii_oddana_…`) jest liczony jako współczynnik × cena energii pobranej bez OZE i kogeneracji. Zmiana opcji lub tej wyceny przelicza historię kosztów.
 
-Szacunek nie uwzględnia nadwyżki przeniesionej z wcześniejszych okresów (energia oddana jest ważna 12 miesięcy). Przy net-billingu (przyłączenie od 1.04.2022) zostaw opcję **Brak**.
+Szacunek nie uwzględnia nadwyżki przeniesionej z wcześniejszych okresów (energia oddana jest ważna 12 miesięcy).
+
+#### Prosumenci w net-billingu
+
+Prosument przyłączony od 1.04.2022 rozlicza się w net-billingu: energia oddana trafia do depozytu prosumenckiego wyceniona po rynkowej cenie energii (RCE) z godziny, w której ją oddano, × 1,23 (ujemna RCE liczy się jako zero). Po wybraniu w opcji **System opustów** wartości **Net-billing**:
+
+- **koszt energii oddanej** w panelu Energia (`enea:…_koszt_energii_oddana_…`) to suma z każdej godziny: energia oddana × RCE tej godziny × 1,23. Godzinowe RCE integracja pobiera z publicznego API raportów PSE (`api.raporty.pse.pl`, okresy 15-minutowe uśredniane do godziny) i zapamiętuje, więc historia jest pobierana raz. Zmiana opcji przelicza historię kosztów;
+- godzina, dla której PSE nie opublikowało jeszcze ceny, zostaje bez wyceny i jest przeliczana, gdy cena się pojawi;
+- **szacowany rachunek** nie symuluje depozytu — liczy się jak przy opcji **Brak**.
 
 ### Która taryfa będzie tańsza?
 

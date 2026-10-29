@@ -38,6 +38,8 @@ URL_NOTIFICATIONS = f"{BASE_URL}/notification/"
 URL_NOTIFICATION_READ = f"{BASE_URL}/notification/read/{{notification_id}}"
 # Strona „Wiadomości” we frontendzie — załącznik wiadomości pobierze tylko zalogowany.
 URL_NOTIFICATIONS_PAGE = f"{PORTAL_URL}/portalOdbiorcy/#!/ems/powiadomienia"
+# Publiczne API raportów PSE — rynkowa cena energii (RCE) w PLN/MWh, okresy 15-minutowe.
+URL_RCE = "https://api.raporty.pse.pl/api/rce-pln"
 
 # ---------------------------------------------------------------------------
 # Config entry keys
@@ -270,6 +272,19 @@ NET_METERING_RATIOS: dict[str, float] = {
     "0_8": 0.8,
     "0_7": 0.7,
 }
+
+# Net-billing (prosumenci przyłączeni od 1.04.2022): energia oddana trafia do depozytu
+# prosumenckiego wyceniona po godzinowej RCE (ujemna liczy się jako 0) × 1,23.  Opcja
+# licznika prosumenta, wartość CONF_NET_METERING obok DEFAULT_NET_METERING i NET_METERING_RATIOS.
+NET_BILLING = "net_billing"
+NET_BILLING_DEPOSIT_FACTOR = 1.23
+
+# Godzinowe ceny RCE już pobrane z PSE (wspólne dla wszystkich liczników); przeszłe ceny się
+# nie zmieniają.  Dzień bez cen starszy niż RCE_MISSING_DAY_GRACE_DAYS nie jest już odpytywany.
+RCE_STORAGE_KEY = f"{DOMAIN}.rce"
+RCE_STORAGE_VERSION = 1
+RCE_MISSING_DAY_GRACE_DAYS = 3
+RCE_PAGE_SIZE = 5000
 
 # Bill estimate entity keys
 BILL_KEY_PREV_READING = "bill_prev_reading"

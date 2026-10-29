@@ -19,7 +19,7 @@
           "fetch_power_consumption": "Enable to import hourly power consumed statistics (kW).",
           "fetch_power_generation": "Enable to import hourly power returned statistics (kW). Disable if you have no solar panels or other generation source.",
           "notifications": "Messages from the “Wiadomości” tab of the Portal Odbiorcy Enea (e.g. announcements of maintenance work) appear as Home Assistant notifications. Meters of one account check them together.",
-          "net_metering": "A prosumer connected by 31 March 2022 settles returned energy by net metering: each kWh returned is taken back free of charge as 0.8 kWh (installation up to 10 kW) or 0.7 kWh (above 10 kW). The ratio lowers the estimated bill and the value of returned energy in the Energy dashboard. Choose “None” under net-billing."
+          "net_metering": "A prosumer connected by 31 March 2022 settles returned energy by net metering: each kWh returned is taken back free of charge as 0.8 kWh (installation up to 10 kW) or 0.7 kWh (above 10 kW). The ratio lowers the estimated bill and the value of returned energy in the Energy dashboard. Under net-billing choose “Net-billing”: returned energy is valued in the Energy dashboard at what it adds to the prosumer deposit — the hourly RCE published by PSE (a negative price counts as zero) × 1.23."
         }
       }
     },
@@ -63,7 +63,7 @@
           "fetch_power_consumption": "Enable to import hourly power consumed statistics (kW).",
           "fetch_power_generation": "Enable to import hourly power returned statistics (kW). Disable if you have no solar panels or other generation source.",
           "notifications": "Messages from the “Wiadomości” tab of the Portal Odbiorcy Enea (e.g. announcements of maintenance work) appear as Home Assistant notifications. Meters of one account check them together.",
-          "net_metering": "A prosumer connected by 31 March 2022 settles returned energy by net metering: each kWh returned is taken back free of charge as 0.8 kWh (installation up to 10 kW) or 0.7 kWh (above 10 kW). The ratio lowers the estimated bill and the value of returned energy in the Energy dashboard. Choose “None” under net-billing."
+          "net_metering": "A prosumer connected by 31 March 2022 settles returned energy by net metering: each kWh returned is taken back free of charge as 0.8 kWh (installation up to 10 kW) or 0.7 kWh (above 10 kW). The ratio lowers the estimated bill and the value of returned energy in the Energy dashboard. Under net-billing choose “Net-billing”: returned energy is valued in the Energy dashboard at what it adds to the prosumer deposit — the hourly RCE published by PSE (a negative price counts as zero) × 1.23."
         }
       },
       "reauth": {
@@ -382,9 +382,10 @@
   "selector": {
     "net_metering": {
       "options": {
-        "none": "None (net-billing)",
+        "none": "None",
         "0_8": "0.8 – installation up to 10 kW",
-        "0_7": "0.7 – installation above 10 kW"
+        "0_7": "0.7 – installation above 10 kW",
+        "net_billing": "Net-billing – hourly RCE × 1.23"
       }
     }
   },

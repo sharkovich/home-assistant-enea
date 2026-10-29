@@ -12,6 +12,7 @@ from homeassistant.components.recorder.statistics import get_last_statistics
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.recorder import get_instance
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.storage import Store
@@ -41,6 +42,8 @@ from .const import (
     MISSING_DAY_GRACE_DAYS,
     PPE_TYPE_PROSUMER,
     RANGE_FETCH_CHUNK_DAYS,
+    RCE_STORAGE_KEY,
+    RCE_STORAGE_VERSION,
     STAT_KEY_ENERGY_CONSUMED,
     STAT_KEY_ENERGY_RETURNED,
     STAT_KEY_POWER_CONSUMED,
@@ -67,6 +70,7 @@ from .issues import (
 )
 from .notifications import EneaNotifications
 from .parsing import assemble_days
+from .rce import RceCache, async_fetch_rows
 from .statistics import async_insert_historical_statistics, get_statistic_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,6 +92,7 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         fetch_power_consumption: bool = False,
         fetch_power_generation: bool = False,
         net_metering_ratio: float | None = None,
+        net_billing: bool = False,
         notifications: EneaNotifications | None = None,
     ) -> None:
         super().__init__(
@@ -112,6 +117,12 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._prosumer = False
         # The prosumer's net-metering ratio (0.8/0.7) from the options; None without.
         self._net_metering_ratio = net_metering_ratio
+        # Net-billing from the options: returned energy is costed at the hourly RCE.
+        self._net_billing = net_billing
+        self._rce = RceCache(
+            Store(hass, RCE_STORAGE_VERSION, f"{RCE_STORAGE_KEY}.{config_entry.entry_id}"),
+            lambda first, last: async_fetch_rows(async_get_clientsession(hass), first, last),
+        )
         self._assembly_datetime: datetime | None = None
         self._backfill_task: asyncio.Task[None] | None = None
         # The task swallows its own failure (it only logs it), so the error is kept
@@ -201,6 +212,16 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _returned_cost_ratio(self) -> float:
         """Return the share of its price a returned kWh is costed at."""
         return self._net_metering if self._net_metering is not None else 1.0
+
+    async def _async_returned_prices(self, first: date, last: date) -> dict[int, float] | None:
+        """Return the hourly RCE returned energy is costed at, None unless under net-billing.
+
+        Only a prosumer's meter with the net-billing option has them; the days
+        from first to last are fetched from PSE unless already known.
+        """
+        if not (self._prosumer and self._net_billing):
+            return None
+        return await self._rce.async_prices(first, last, dt_util.now().date())
 
     def _uses_balanced_data(self) -> bool:
         """Return True when at least one fetched series comes from balanced data."""
@@ -512,6 +533,7 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._fetch_generation,
                 self._returned_cost_ratio,
                 rewrite=rewrite,
+                returned_prices=await self._async_returned_prices(all_days[0][0], all_days[-1][0]),
             )
             await self._async_save_cost_prices(tariff, all_days[0][0], all_days[-1][0])
 
@@ -693,6 +715,7 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._fetch_consumption,
                 self._fetch_generation,
                 self._returned_cost_ratio,
+                returned_prices=await self._async_returned_prices(days[0][0], days[-1][0]),
             )
             _LOGGER.debug("Injected cost statistics for %d day(s)", len(days))
         # Remember the last day the portal answered.  A meter whose every
@@ -746,7 +769,10 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
         start = first_repriced_day(
             stored,
-            price_signatures(tariff, first, latest, self._returned_cost_ratio),
+            price_signatures(
+                tariff, first, latest, self._returned_cost_ratio,
+                await self._async_returned_prices(first, latest),
+            ),
             first,
             latest,
         )
@@ -773,6 +799,7 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._fetch_generation,
                 self._returned_cost_ratio,
                 rewrite=True,
+                returned_prices=await self._async_returned_prices(start, latest),
             )
             # The catch-up that follows counts on from the newest cost total,
             # which the rewrite above may have moved, so it has to be committed
@@ -798,7 +825,12 @@ class EneaUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         while day <= last:
             prices.pop(day.isoformat(), None)
             day += timedelta(days=1)
-        prices.update(price_signatures(tariff, first, last, self._returned_cost_ratio))
+        prices.update(
+            price_signatures(
+                tariff, first, last, self._returned_cost_ratio,
+                await self._async_returned_prices(first, last),
+            )
+        )
         self._cost_prices = prices
         await self._cost_prices_store.async_save({"days": prices})
 

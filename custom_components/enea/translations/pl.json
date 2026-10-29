@@ -19,7 +19,7 @@
           "fetch_power_consumption": "Włącz, aby importować godzinowe statystyki mocy pobranej (kW).",
           "fetch_power_generation": "Włącz, aby importować godzinowe statystyki mocy oddanej (kW). Wyłącz, jeśli nie masz paneli fotowoltaicznych ani innego źródła generacji.",
           "notifications": "Wiadomości z zakładki „Wiadomości” w Portalu Odbiorcy Enea (np. zapowiedzi prac serwisowych) pojawią się jako powiadomienia Home Assistant. Liczniki jednego konta sprawdzają je wspólnie.",
-          "net_metering": "Prosument przyłączony do 31.03.2022 rozlicza energię oddaną w systemie opustów: z każdej oddanej kWh odbiera bez opłat 0,8 kWh (instalacja do 10 kW) albo 0,7 kWh (powyżej 10 kW). Współczynnik obniża szacowany rachunek i wycenę energii oddanej w panelu Energia. Przy net-billingu wybierz „Brak”."
+          "net_metering": "Prosument przyłączony do 31.03.2022 rozlicza energię oddaną w systemie opustów: z każdej oddanej kWh odbiera bez opłat 0,8 kWh (instalacja do 10 kW) albo 0,7 kWh (powyżej 10 kW). Współczynnik obniża szacowany rachunek i wycenę energii oddanej w panelu Energia. Przy net-billingu wybierz „Net-billing”: energia oddana jest wyceniana w panelu Energia tak, jak trafia do depozytu prosumenckiego — po godzinowej RCE publikowanej przez PSE (ujemna liczy się jako zero) × 1,23."
         }
       }
     },
@@ -63,7 +63,7 @@
           "fetch_power_consumption": "Włącz, aby importować godzinowe statystyki mocy pobranej (kW).",
           "fetch_power_generation": "Włącz, aby importować godzinowe statystyki mocy oddanej (kW). Wyłącz, jeśli nie masz paneli fotowoltaicznych ani innego źródła generacji.",
           "notifications": "Wiadomości z zakładki „Wiadomości” w Portalu Odbiorcy Enea (np. zapowiedzi prac serwisowych) pojawią się jako powiadomienia Home Assistant. Liczniki jednego konta sprawdzają je wspólnie.",
-          "net_metering": "Prosument przyłączony do 31.03.2022 rozlicza energię oddaną w systemie opustów: z każdej oddanej kWh odbiera bez opłat 0,8 kWh (instalacja do 10 kW) albo 0,7 kWh (powyżej 10 kW). Współczynnik obniża szacowany rachunek i wycenę energii oddanej w panelu Energia. Przy net-billingu wybierz „Brak”."
+          "net_metering": "Prosument przyłączony do 31.03.2022 rozlicza energię oddaną w systemie opustów: z każdej oddanej kWh odbiera bez opłat 0,8 kWh (instalacja do 10 kW) albo 0,7 kWh (powyżej 10 kW). Współczynnik obniża szacowany rachunek i wycenę energii oddanej w panelu Energia. Przy net-billingu wybierz „Net-billing”: energia oddana jest wyceniana w panelu Energia tak, jak trafia do depozytu prosumenckiego — po godzinowej RCE publikowanej przez PSE (ujemna liczy się jako zero) × 1,23."
         }
       },
       "reauth": {
@@ -382,9 +382,10 @@
   "selector": {
     "net_metering": {
       "options": {
-        "none": "Brak (net-billing)",
+        "none": "Brak",
         "0_8": "0,8 – instalacja do 10 kW",
-        "0_7": "0,7 – instalacja powyżej 10 kW"
+        "0_7": "0,7 – instalacja powyżej 10 kW",
+        "net_billing": "Net-billing – godzinowa RCE × 1,23"
       }
     }
   },

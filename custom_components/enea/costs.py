@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import logging
 import sys
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from typing import Any, NamedTuple
 
@@ -39,6 +40,7 @@ from .const import (
     COST_ZONE_DISPLAY,
     DOMAIN,
     ENEA_PRICES_DOMAIN,
+    NET_BILLING_DEPOSIT_FACTOR,
     STAT_KEY_ENERGY_CONSUMED,
     STAT_KEY_ENERGY_RETURNED,
     UNIT_COST,
@@ -75,8 +77,23 @@ def _kwh_price(pricing: Any, akcyza: float, *, net_metering_return: bool = False
     return round((pricing.energy + akcyza + distribution) * (1 + VAT_RATE), 4)
 
 
+def _deposit_price(returned_prices: Mapping[int, float], hour: datetime) -> float | None:
+    """Return what a kWh returned in hour adds to the net-billing deposit, None when unknown.
+
+    The hour's RCE, a negative one counting as zero, times NET_BILLING_DEPOSIT_FACTOR.
+    """
+    rce = returned_prices.get(int(hour.timestamp()))
+    if rce is None:
+        return None
+    return max(rce, 0.0) * NET_BILLING_DEPOSIT_FACTOR
+
+
 def price_signatures(
-    tariff: Any, first: date, last: date, returned_ratio: float = 1.0
+    tariff: Any,
+    first: date,
+    last: date,
+    returned_ratio: float = 1.0,
+    returned_prices: Mapping[int, float] | None = None,
 ) -> dict[str, str]:
     """Return a short fingerprint of the prices each day from first to last is costed at.
 
@@ -87,7 +104,10 @@ def price_signatures(
     net-metering ratio other than 1.0 values returned energy below that price,
     so both it and the credit price excluding OZE/cogeneration are included;
     at 1.0 they are left out, which keeps
-    the fingerprints stored before the ratio existed.
+    the fingerprints stored before the ratio existed.  Under net-billing
+    (returned_prices given) returned energy is valued at each hour's RCE, so
+    those prices are included too — an hour still without one as well, so a
+    price published later reprices the day.
     """
     akcyza = _akcyza()
     signatures: dict[str, str] = {}
@@ -109,6 +129,13 @@ def price_signatures(
                     hours.append(f"credit={credit}")
             if returned_ratio != 1.0:
                 hours.append(f"returned={returned_ratio}")
+            if returned_prices is not None:
+                hour = dt_util.start_of_local_day(day)
+                end = dt_util.start_of_local_day(day + timedelta(days=1))
+                while hour < end:
+                    rce = returned_prices.get(int(hour.timestamp()))
+                    hours.append(f"rce={round(rce, 5) if rce is not None else None}")
+                    hour += timedelta(hours=1)
             signatures[day.isoformat()] = hashlib.blake2s(
                 "|".join(hours).encode(), digest_size=8
             ).hexdigest()
@@ -238,14 +265,18 @@ def cost_series(
     tariff: Any,
     akcyza: float,
     ratio: float = 1.0,
+    returned_prices: Mapping[int, float] | None = None,
 ) -> CostSeries:
     """Price every hour of one direction's energy in the zone it falls in.
 
     Each hour's total kWh (all zones the portal reports) is multiplied by the
     brutto price of the zone the tariff schedule puts the hour in on its own
     day, and by ratio — the share of a kWh's price a returned kWh is worth
-    under net metering.  An hour in a zone the period does not price is left
-    out; a day without a price period is left out whole and reported.
+    under net metering.  Under net-billing (returned_prices given for returned
+    energy) an hour's kWh are valued at what they add to the prosumer deposit
+    instead — see _deposit_price — and an hour without a known RCE is left out.
+    An hour in a zone the period does not price is left out; a day without a
+    price period is left out whole and reported.
 
     Args:
         all_days: Chronologically sorted (date, day_data) tuples.
@@ -253,6 +284,8 @@ def cost_series(
         tariff: A TariffGroup or TariffHistory (duck-typed).
         akcyza: The excise duty per kWh.
         ratio: The share of the price each kWh is worth.
+        returned_prices: The hourly RCE in PLN/kWh by the UTC timestamp of the
+                  hour's start, for returned energy under net-billing; None otherwise.
     """
     by_zone: dict[str, list[tuple[datetime, float]]] = {}
     hours: list[datetime] = []
@@ -276,11 +309,17 @@ def cost_series(
             if zone not in period.zones:
                 continue
             total_kwh = sum(item.get("value") or 0.0 for item in entry.get("items", []))
-            price = _kwh_price(
-                period.zones[zone], akcyza,
-                net_metering_return=key == STAT_KEY_ENERGY_RETURNED and ratio != 1.0,
-            )
-            cost = total_kwh * price * ratio
+            if key == STAT_KEY_ENERGY_RETURNED and returned_prices is not None:
+                deposit = _deposit_price(returned_prices, dt)
+                if deposit is None:
+                    continue
+                cost = total_kwh * deposit
+            else:
+                price = _kwh_price(
+                    period.zones[zone], akcyza,
+                    net_metering_return=key == STAT_KEY_ENERGY_RETURNED and ratio != 1.0,
+                )
+                cost = total_kwh * price * ratio
             by_zone.setdefault(str(zone), []).append((dt, cost))
 
     return CostSeries(by_zone, hours, days_without_period)
@@ -295,6 +334,7 @@ async def async_insert_cost_statistics(
     fetch_generation: bool = True,
     returned_ratio: float = 1.0,
     rewrite: bool = False,
+    returned_prices: Mapping[int, float] | None = None,
 ) -> None:
     """Inject hourly cumulative cost statistics (PLN) per zone.
 
@@ -318,6 +358,8 @@ async def async_insert_cost_statistics(
                   or at all: an hour whose stored cost sits in a series of a
                   zone it no longer belongs to, or that is no longer priced,
                   is written there as costing nothing.
+        returned_prices: Under net-billing, the hourly RCE (PLN/kWh by the UTC
+                  timestamp of the hour's start) returned energy is valued at.
     """
     if not all_days:
         return
@@ -339,7 +381,10 @@ async def async_insert_cost_statistics(
 
         # Under net metering a returned kWh takes back only part of a consumed one.
         ratio = returned_ratio if key == STAT_KEY_ENERGY_RETURNED else 1.0
-        series_by_zone, hours, unpriced = cost_series(all_days, key, tariff, akcyza, ratio)
+        series_by_zone, hours, unpriced = cost_series(
+            all_days, key, tariff, akcyza, ratio,
+            returned_prices if key == STAT_KEY_ENERGY_RETURNED else None,
+        )
         for group, days in unpriced.items():
             days_without_period.setdefault(group, set()).update(days)
 

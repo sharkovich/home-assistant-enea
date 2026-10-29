@@ -46,6 +46,7 @@ from .const import (
     ERROR_INVALID_AUTH,
     ERROR_UNKNOWN,
     MIN_UPDATE_INTERVAL_MINUTES,
+    NET_BILLING,
     NET_METERING_RATIOS,
     PPE_TYPE_PROSUMER,
 )
@@ -112,7 +113,7 @@ def _options_schema(defaults: Mapping[str, Any], prosumer: bool) -> vol.Schema:
             )
         ] = SelectSelector(
             SelectSelectorConfig(
-                options=[DEFAULT_NET_METERING, *NET_METERING_RATIOS],
+                options=[DEFAULT_NET_METERING, *NET_METERING_RATIOS, NET_BILLING],
                 translation_key=CONF_NET_METERING,
                 mode=SelectSelectorMode.LIST,
             )
