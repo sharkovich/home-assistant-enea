@@ -1,8 +1,6 @@
 {
   "name": "Enea Licznik",
   "render_readme": true,
-  "zip_release": true,
-  "filename": "enea.zip",
   "country": ["PL"],
   "homeassistant": "2026.3.3"
 }
